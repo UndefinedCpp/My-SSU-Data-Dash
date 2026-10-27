@@ -13,12 +13,13 @@ class BaseModel(abc.ABC):
 
     Do not subclass this directly: use `BaseOffMarketModel` or `BaseListAwareModel`.
     """
+
     NAME: ClassVar[str] = ""
     TRACK: ClassVar[Track]
     ENABLED: ClassVar[bool] = False
     MODEL_TAG: ClassVar[str] = "model"
 
-    def train(self, data: pd.DataFrame) -> 'BaseModel':
+    def train(self, data: pd.DataFrame) -> "BaseModel":
         """
         Train the model with the provided data.
         """
@@ -34,14 +35,14 @@ class BaseModel(abc.ABC):
         elif isinstance(x, np.ndarray):
             return pd.Series(x)
         else:
-            raise ValueError(f'Unrecognized prediction result type: {type(x)}')
+            raise ValueError(f"Unrecognized prediction result type: {type(x)}")
 
     def _prepare(self, data: pd.DataFrame) -> pd.DataFrame:
         """Restrict data to the columns available on this model's track."""
         return data
 
     @abc.abstractmethod
-    def _train(self, data: pd.DataFrame) -> 'BaseModel | None':
+    def _train(self, data: pd.DataFrame) -> "BaseModel | None":
         """Subclass hook: fit the model. May return self or None."""
 
     @abc.abstractmethod
@@ -54,6 +55,7 @@ class BaseModel(abc.ABC):
 
 class BaseOffMarketModel(BaseModel):
     """Values homes that have no list price; `list_price` is hidden from the model."""
+
     TRACK: ClassVar[Track] = "off_market"
 
     def _prepare(self, data: pd.DataFrame) -> pd.DataFrame:
@@ -62,4 +64,5 @@ class BaseOffMarketModel(BaseModel):
 
 class BaseListAwareModel(BaseModel):
     """Values homes that have a list price, which is available as `list_price`."""
+
     TRACK: ClassVar[Track] = "list_aware"
