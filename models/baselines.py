@@ -4,25 +4,24 @@ Baseline models that ships with the starter kit.
 Original script: <https://github.com/erwinzhang7/SSU-Data-Dash/blob/main/models.py>
 """
 
-from models.BaseModel import BaseModel
+from models.BaseModel import BaseOffMarketModel, BaseListAwareModel
 import numpy as np
 import pandas as pd
 
-class ListPriceBaseline(BaseModel):
+class ListPriceBaseline(BaseListAwareModel):
     """List-aware baseline: every home sells for exactly its list price."""
     NAME = 'Copy List Price'
-    TRACKS = ('list_aware',)
     ENABLED = True
     MODEL_TAG = 'baseline'
 
-    def train(self, train):
+    def _train(self, train):
         return self   # nothing to learn
 
-    def predict(self, homes):
+    def _predict(self, homes):
         return pd.Series(homes["list_price"].to_numpy(dtype=float))
 
 
-class NearestSalesBaseline(BaseModel):
+class NearestSalesBaseline(BaseOffMarketModel):
     """Off-market baseline: the median sold price of the k nearest earlier sales of
     the same property type.
 
@@ -32,14 +31,13 @@ class NearestSalesBaseline(BaseModel):
     for prices moving since those sales: improving on that is your job.
     """
     NAME = 'Nearest Sales'
-    TRACKS = ('off_market',)
     ENABLED = True
     MODEL_TAG = 'baseline'
 
     def __init__(self, k=10):
         self.k = k
 
-    def train(self, train):
+    def _train(self, train):
         columns = ["ml_num", "house_type_name", "date_sold", "latitude", "longitude", "sold_price"]
         # Newest sales first, so when several sales are equally near (a condo
         # building shares one location), the most recent ones are picked.
@@ -47,7 +45,7 @@ class NearestSalesBaseline(BaseModel):
         self.sales_by_type = dict(list(self.sales.groupby("house_type_name")))
         return self
 
-    def predict(self, homes):
+    def _predict(self, homes):
         x = np.array([self.predict_one(home) for _, home in homes.iterrows()])
         return pd.Series(x)
 
@@ -67,14 +65,13 @@ class NearestSalesBaseline(BaseModel):
         return float(np.median(earlier["sold_price"].to_numpy()[nearest]))
 
 
-class RandomBaseline(BaseModel):
+class RandomBaseline(BaseListAwareModel):
     NAME = 'Random Baseline'
-    TRACKS = ('list_aware',)
     ENABLED = True
     MODEL_TAG = 'baseline'
 
-    def train(self, train):
+    def _train(self, train):
         return self   # nothing to learn
 
-    def predict(self, homes):
+    def _predict(self, homes):
         return pd.Series(np.random.rand(len(homes)) * homes["list_price"].to_numpy(dtype=float))

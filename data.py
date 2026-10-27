@@ -38,7 +38,6 @@ The error from Hugging Face was: {error}
 
 def find_file(name: str):
     """Return the path of one data file, downloading it the first time."""
-    name = name.replace('-', '_')
     stem = FILE_NAMES[name]
     folder = os.environ.get("DATA_DIR", 'data')
     if folder:

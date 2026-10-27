@@ -6,7 +6,7 @@ from typing import Callable
 
 import pandas as pd
 import numpy as np
-from models.BaseModel import BaseModel
+from models.BaseModel import BaseModel, Track
 from model_hub import gather_models, load_model
 from pathlib import Path
 import data
@@ -23,11 +23,10 @@ CLAIMED_BASELINE_LIST_AWARE = 7.3  # Reproduced value: 7.2593, CI: [7.120, 7.414
 
 def predict_and_write(
     model: BaseModel,
-    track: str,
     output_file_path: Path,
     verbose: bool = True
 ):
-    assert track in ['off-market', 'list-aware'], f'Invalid track: {track}'
+    track = model.TRACK
     my_print = logger.info if verbose else lambda *args, **kwargs: None
     my_print(f'Predicting with model "{model.NAME}" on track "{track}"')
     time_begin = time.perf_counter()
@@ -111,8 +110,9 @@ def test_significance(y: pd.Series, pred1: pd.Series, pred2: pd.Series, B=5000, 
     }
 
 
-def backtest(model: BaseModel, date_cutoff: pd.Period, track: str, verbose: bool = True, save_results: bool = False) -> str | pd.DataFrame:
+def backtest(model: BaseModel, date_cutoff: pd.Period, verbose: bool = True, save_results: bool = False) -> str | pd.DataFrame:
     my_print = logger.info if verbose else (lambda *args, **kwargs: None)
+    track = model.TRACK
 
     my_print(f'Preparing backtest data, cutoff: {date_cutoff}, track: "{track}"')
     listings = data.load('listings')
@@ -123,7 +123,6 @@ def backtest(model: BaseModel, date_cutoff: pd.Period, track: str, verbose: bool
     model.train(train_data)
 
     my_print(f'Validating, dataset size: {len(valid_data):,}')
-    track = track.replace('-', '_')  # normalize track name
     predictions = model.predict(data.hide_answers(valid_data, track))
     predictions = predictions.round()
     targets = valid_data['sold_price']
