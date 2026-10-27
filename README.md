@@ -1,6 +1,6 @@
 # SSU Data Dash: predict Toronto home prices
 
-Competition repo: [erwinzhang7/SSU-Data-Dash](https://github.com/erwinzhang7/SSU-Data-Dash/)
+Competition repo: [erwinzhang7/SSU-Data-Dash](https://github.com/erwinzhang7/SSU-Data-Dash/); Changelog [here](https://docs.google.com/spreadsheets/d/1rNc3G17JMyiek8kcmEtOW_g_7IQfK2x3/edit?gid=1719102416#gid=1719102416)
 
 Some code are derived from the original repo.
 
