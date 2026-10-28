@@ -87,29 +87,16 @@ def report_metrics(predictions: pd.Series, target: pd.Series):
 
 
 def test_significance(
-    y: pd.Series, pred1: pd.Series, pred2: pd.Series, B=5000, alpha=0.05, seed=None
-):
-    assert len(y) == len(pred1) == len(pred2), "Lengths must match"
-    y = y.to_numpy()
-    p1 = pred1.to_numpy()
-    p2 = pred2.to_numpy()
-    n = len(y)
-    rng = np.random.default_rng(seed)
-
-    diffs = np.empty(B)
-    for b in range(B):
-        idx = rng.integers(0, n, n)
-        diffs[b] = np.median(y[idx] - p1[idx]) - np.median(y[idx] - p2[idx])
-
-    lo, hi = np.percentile(diffs, [100 * alpha / 2, 100 * (1 - alpha / 2)])
-    p = 2 * min((diffs <= 0).mean(), (diffs >= 0).mean())
-    p = min(p, 1.0)
-
+    preds_1: pd.Series, preds_2: pd.Series, targets: pd.Series
+) -> dict:
+    ape_1 = np.abs(preds_1 - targets) / np.abs(targets) * 100
+    ape_2 = np.abs(preds_2 - targets) / np.abs(targets) * 100
+    diffs = ape_1 - ape_2
+    _, p = wilcoxon(diffs, alternative="two-sided", zero_method="wilcox")
     return {
-        "delta": float(diffs.mean()),
-        "ci": [float(lo), float(hi)],
+        "delta": float(np.median(diffs)),
         "p": float(p),
-        "significant": not (lo <= 0 <= hi),  # 95% CI excludes 0
+        "significant": bool(p < 0.05),
     }
 
 
@@ -175,17 +162,28 @@ def backtest(
         return experiment_df
 
 
-def benchmark(track):
+def benchmark(track_or_model_list):
     """
     Grab all models enabled for the specified track and run backtest for each
     of them. Finally generate a leading board and a benchmark report.
     """
     # Get all models enabled for the specified track
-    enabled_models = [
-        m
-        for m in model_hub.gather_models(Path("models"))
-        if m.TRACK == track and m.ENABLED
-    ]
+    if isinstance(track_or_model_list, str):
+        track = track_or_model_list
+        enabled_models = [
+            m
+            for m in model_hub.gather_models(Path("models"))
+            if m.TRACK == track and m.ENABLED
+        ]
+    else:
+        models_to_benchmark = track_or_model_list
+        enabled_models = [
+            model_hub.load_model(model).__class__ for model in models_to_benchmark
+        ]
+        assert all(m.ENABLED for m in enabled_models), "All specified models must be enabled"
+        enabled_model_first_track = enabled_models[0].TRACK
+        assert all(m.TRACK == enabled_model_first_track for m in enabled_models), "All specified models must be on the same track"
+
     logger.info(
         f"Gathered {len(enabled_models)} model(s): {[m.__name__ for m in enabled_models]}"
     )
@@ -226,22 +224,11 @@ def benchmark(track):
             preds_i = prediction_results[model_id_i]["pred"]
             preds_j = prediction_results[model_id_j]["pred"]
             targets = prediction_results[model_id_i]["target"]
-            # Test significance with Wilcoxon signed-rank test.
-            # Compute absolute percentage error
-            ape_i = np.abs(preds_i - targets) / np.abs(targets) * 100
-            ape_j = np.abs(preds_j - targets) / np.abs(targets) * 100
-            diffs = ape_i - ape_j  # paired differences
-            # two-sided: H0: median(diffs) == 0 vs H1: median(diffs) != 0
-            stat, p = wilcoxon(diffs, alternative="two-sided", zero_method="wilcox")
-            is_significant = bool(p < 0.05)
-            # effect size & direction (this is what says "which is better")
-            med_diff = np.median(diffs)
-            better = model_id_j if med_diff > 0 else model_id_i
+            result = test_significance(preds_i, preds_j, targets)
+            better = model_id_j if result["delta"] > 0 else model_id_i
             wilcoxon_test_results[(model_id_i, model_id_j)] = {
-                "delta": med_diff,
-                "p": p,
-                "significant": is_significant,
-                "better": None if not is_significant else better,
+                **result,
+                "better": None if not result["significant"] else better,
             }
 
     # Save results

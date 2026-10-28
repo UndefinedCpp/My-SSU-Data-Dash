@@ -8,8 +8,10 @@ Required sub-commands:
   Check the two submission files for format and consistency.
 
 Custom sub-commands:
-- python run.py backtest [model_name] [-c cutoff]
+- python run.py backtest [model_name] [-c cutoff] [--ref ref_model_name]
   Backtest the specified model (on its own track) at the given cutoff date.
+  Can optionally pass a reference model name so the back test can compare the
+  performance against the reference model.
 - python run.py clean
   Clean up generated backtest files.
 - python run.py benchmark [track]
@@ -52,6 +54,11 @@ backtest_parser.add_argument(
     "--cutoff",
     help="Cutoff date for the backtest in YYYY-MM format, or 'all' for a walk-forward backtest (default)",
     default="all",
+)
+backtest_parser.add_argument(
+    "--ref",
+    help="Reference model name for comparison in the backtest",
+    required=False,
 )
 clean_parser = subparsers.add_parser("clean", help="Clean up generated backtest files.")
 benchmark_parser = subparsers.add_parser(
@@ -103,6 +110,12 @@ if __name__ == "__main__":
             parser.error(f"Unknown or disabled model: {args.model_name}")
         t = model.TRACK
 
+        has_reference_model = args.ref is not None
+        if has_reference_model:
+            reference_model = model_hub.load_model(args.ref)
+            if reference_model is None:
+                parser.error(f"Unknown or disabled reference model: {args.ref}")
+
         date_cutoff = args.cutoff
         if date_cutoff == "all":
             date_cutoff = pd.period_range("2025-12", "2026-05", freq="M")
@@ -113,6 +126,11 @@ if __name__ == "__main__":
 
         # Separate handling for single pass vs multiple date cutoffs
         if single_pass:
+            if has_reference_model:
+                # Backtesting one single month with a reference model may be
+                # misleading, so we issue a warning to the user and does not
+                # perform a comparision.
+                logger.warning(f'Backtesting a single month with a reference model may be misleading. Comparison will not be performed.')
             harness.backtest(model, date_cutoff[0], verbose=True, save_results=True)
         else:
             experiment_dataframes = []
@@ -134,6 +152,28 @@ if __name__ == "__main__":
             logger.info(
                 f'  Signed error: median={metrics["median_signed_err"]:.4f}, mean={metrics["mean_signed_err"]:.4f}'
             )
+
+            if has_reference_model:
+                logger.info(f'Running extra comparison with reference model {reference_model.get_id()}')
+                ref_dataframes = []
+                for dc in tqdm(date_cutoff, desc=f"Backtesting reference model"):
+                    r = harness.backtest(reference_model, dc, verbose=False, save_results=False)
+                    ref_dataframes.append(r)
+                pooled_ref_df = pd.concat(ref_dataframes, ignore_index=True)
+                ref_metrics = harness.report_metrics(pooled_ref_df["pred"], pooled_ref_df["target"])
+                significance_result = harness.test_significance(
+                    pooled_df["pred"], pooled_ref_df["pred"], pooled_df["target"]
+                )
+                logger.success(f'Model comparison completed')
+                logger.info(f'Reference model MdAPE={ref_metrics["MdAPE"]:.4f} '
+                            f'(CI: [{ref_metrics["MdAPE_95CI"][0]:.3f}, {ref_metrics["MdAPE_95CI"][1]:.3f}])')
+                logger.info(f'Significance test result: delta={significance_result["delta"]:.4f}, p={significance_result["p"]:.3g}')
+                if significance_result['significant']:
+                    verdict = 'BETTER' if significance_result["delta"] < 0 else 'WORSE'
+                    logger.info(f'The model is significantly {verdict} than the reference model.')
+                else:
+                    logger.info(f'The model is NOT significantly DIFFERENT from the reference model.')
+
 
     elif subcommand == "benchmark":
         assert args.track in [

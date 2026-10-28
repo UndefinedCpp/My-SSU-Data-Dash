@@ -28,10 +28,10 @@ def gather_models(path: Path) -> list[type[BaseModel]]:
     return model_classes
 
 
-def load_model(selector: str) -> BaseModel | None:
+def load_model(selector: str) -> BaseModel:
     all_models = gather_models(Path("models"))
     for model_class in all_models:
         if model_class.__name__ == selector:
             return model_class()
 
-    return None
+    raise ValueError(f"Model with selector '{selector}' not found")
