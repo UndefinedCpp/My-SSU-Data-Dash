@@ -128,7 +128,7 @@ if __name__ == "__main__":
         if single_pass:
             if has_reference_model:
                 # Backtesting one single month with a reference model may be
-                # misleading, so we issue a warning to the user and does not
+                # misleading, so we issue a warning to the user and does no
                 # perform a comparision.
                 logger.warning(f'Backtesting a single month with a reference model may be misleading. Comparison will not be performed.')
             harness.backtest(model, date_cutoff[0], verbose=True, save_results=True)

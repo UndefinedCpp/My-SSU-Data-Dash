@@ -14,7 +14,6 @@ PROPERTY_TYPES = [
     "Co-Op Apt",
 ]
 
-
 def square_feet(house_area):
     """house_area is text, either one number ("622") or a range ("900-1099").
     Return a number: the number itself, or the middle of the range."""
@@ -40,7 +39,7 @@ class SimpleOffMarketFeatureModel(BaseOffMarketModel):
     @staticmethod
     def make_features(homes: pd.DataFrame) -> pd.DataFrame:
         X = pd.DataFrame(index=homes.index)
-        X["square_feet"] = square_feet(homes["house_area"])
+        X["area"] = square_feet(homes["house_area"])
         X["bedrooms"] = homes["bedrooms"]
         X["washrooms"] = homes["washrooms"]
         X["parking"] = homes["parking_total"]
@@ -93,18 +92,3 @@ class SimpleListAwareFeatureModel(BaseListAwareModel):
         X = self.make_features(homes)
         log_preds = self.model.predict(X)
         return np.exp(log_preds)
-
-
-class OffMarketFeatureModelV2(SimpleOffMarketFeatureModel):
-    """
-    Off-market model version 2 with additional features for improved prediction
-    accuracy.
-    """
-
-    NAME = "Off-Market Feature Model V2"
-    ENABLED = True
-    MODEL_TAG = "model"
-
-    def __init__(self):
-        super().__init__()
-        self.model = HistGradientBoostingRegressor()

@@ -79,7 +79,7 @@ class NearestSalesBaseline(BaseOffMarketModel):
 
 class RandomBaseline(BaseListAwareModel):
     NAME = "Random Baseline"
-    ENABLED = True
+    ENABLED = False
     MODEL_TAG = "baseline"
 
     def _train(self, train):

@@ -5,7 +5,7 @@ from loguru import logger
 
 
 def gather_models(path: Path) -> list[type[BaseModel]]:
-    model_classes = []
+    model_classes_dict = {}
 
     for file in path.glob("*.py"):
         if file.stem in ["__init__", "BaseModel"]:  # skip init and base model files
@@ -23,9 +23,9 @@ def gather_models(path: Path) -> list[type[BaseModel]]:
                 and issubclass(attr, BaseModel)
                 and getattr(attr, "ENABLED", False)
             ):
-                model_classes.append(attr)
+                model_classes_dict[attr.__name__] = attr
 
-    return model_classes
+    return list(model_classes_dict.values())
 
 
 def load_model(selector: str) -> BaseModel:
