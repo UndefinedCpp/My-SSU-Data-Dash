@@ -4,7 +4,7 @@ class OffMarketFeatureModelV2b(OffMarketFeatureModelV2a):
 
     NAME = "Off-Market Feature Model V2b (more trees)"
     ENABLED = True
-    MODEL_TAG = "model"
+    MODEL_TAG = "HGBR"
 
     def __init__(self):
         super().__init__()
@@ -18,7 +18,7 @@ class ListAwareFeatureModelV2b(ListAwareFeatureModelV2a):
 
     NAME = "List-Aware Feature Model V2b (more trees)"
     ENABLED = True
-    MODEL_TAG = "model"
+    MODEL_TAG = "HGBR"
 
     def __init__(self):
         super().__init__()

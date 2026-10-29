@@ -16,7 +16,7 @@ class OffMarketFeatureModelV2a(OffMarketFeatureModelV2):
     
     NAME = "Off-Market Feature Model V2a (w/ text cues)"
     ENABLED = True
-    MODEL_TAG = "model"
+    MODEL_TAG = "HGBR"
 
     @staticmethod
     def make_features(homes: pd.DataFrame) -> pd.DataFrame:
@@ -37,7 +37,7 @@ class ListAwareFeatureModelV2a(ListAwareFeatureModelV2):
 
     NAME = "List-Aware Feature Model V2a (w/ text cues)"
     ENABLED = True
-    MODEL_TAG = "model"
+    MODEL_TAG = "HGBR"
 
     @staticmethod
     def make_features(homes: pd.DataFrame) -> pd.DataFrame:

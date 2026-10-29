@@ -28,7 +28,7 @@ class OffMarketFeatureModelV2(SimpleOffMarketFeatureModel):
 
     NAME = "Off-Market Feature Model V2"
     ENABLED = True
-    MODEL_TAG = "model"
+    MODEL_TAG = "HGBR"
 
     def __init__(self):
         super().__init__()
@@ -67,7 +67,7 @@ class ListAwareFeatureModelV2(SimpleListAwareFeatureModel):
 
     NAME = "List-Aware Feature Model V2"
     ENABLED = True
-    MODEL_TAG = "model"
+    MODEL_TAG = "HGBR"
 
     def __init__(self):
         super().__init__()
@@ -80,7 +80,6 @@ class ListAwareFeatureModelV2(SimpleListAwareFeatureModel):
         X = pd.DataFrame()
         X["list_price"] = homes["list_price"]
         X["log_list_price"] = np.log(homes["list_price"])
-        X["list_price_per_sqft"] = homes["list_price"] / (homes["lot_front"] * homes["lot_depth"])
         return X
 
     @staticmethod
