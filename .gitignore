@@ -17,3 +17,7 @@ venv/
 .Rhistory
 .vscode/
 report/*.pdf
+
+experiments/
+dsh-*/
+.dsh-*/
