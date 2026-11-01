@@ -42,7 +42,10 @@ def predict_and_write(model: BaseModel, output_file_path: Path, verbose: bool = 
     predictions = model.predict(homes)
 
     pd.DataFrame(
-        {"ml_num": homes["ml_num"], "predicted_price": np.round(predictions)}
+        {
+            "ml_num": homes["ml_num"],
+            "predicted_price": np.round(predictions)
+        }
     ).to_csv(output_file_path, index=False)
 
     time_elapsed = time.perf_counter() - time_begin
@@ -291,3 +294,25 @@ def benchmark(track_or_model_list):
             if is_significantly_better:
                 rank_counter += 1
     logger.info("\n".join(leaderboard_print_lst))
+
+
+def fulltest(model: BaseModel):
+    listings = data.load('listings')
+    # Train through the end of January 2026; validate on February-May 2026.
+    training_set = listings[listings["date_sold"] < pd.Timestamp("2026-02-01")]
+    validation_set = listings[listings["date_sold"] >= pd.Timestamp("2026-02-01")]
+    track = model.TRACK
+    logger.info(f'Running full backtest for model {model.get_id()}, track: {track}')
+    # Train the model on the training set
+    logger.info(f'Model training started')
+    model.train(training_set)
+
+    logger.info(f'Running model on validation set')
+    predictions = model.predict(data.hide_answers(validation_set, track))
+    predictions = predictions.round()
+    targets = validation_set["sold_price"]
+
+    # Evaluate the model's performance on the validation set
+    metrics = report_metrics(predictions, targets)
+
+    return predictions, targets, metrics

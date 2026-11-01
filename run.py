@@ -61,6 +61,19 @@ backtest_parser.add_argument(
     required=False,
 )
 clean_parser = subparsers.add_parser("clean", help="Clean up generated backtest files.")
+fulltest_parser = subparsers.add_parser(
+    "fulltest",
+    help="Run the full backtest: training cutoff 2026-01 and test on Feb to May"
+)
+fulltest_parser.add_argument(
+    "model_name",
+    help="Name of the model to run the full backtest"
+)
+fulltest_parser.add_argument(
+    "--ref",
+    help="Reference model name for comparison in the full backtest",
+    required=False,
+)
 benchmark_parser = subparsers.add_parser(
     "benchmark",
     help="Read all predictions for the specified track and generate a benchmark report.",
@@ -74,8 +87,8 @@ benchmark_parser.add_argument(
 # !!! Final submission models !!!
 # TODO: UPDATE THE FINAL SUBMISSION MODELS BEFORE FINAL SUBMISSION
 SUBMISSION_MODELS = {
-    "off_market": "NearestSalesBaseline",
-    "list_aware": "ListPriceBaseline",
+    "off_market": "OffMarketBuildingXGBoostV1",
+    "list_aware": "ListAwareBuildingV1",
 }
 
 
@@ -174,6 +187,36 @@ if __name__ == "__main__":
                 else:
                     logger.info(f'The model is NOT significantly DIFFERENT from the reference model.')
 
+    elif subcommand == "fulltest":
+        model = harness.load_model(args.model_name)
+        reference_model = (harness.load_model(args.ref)) if args.ref else None
+
+        model_pred, model_target, model_metrics = harness.fulltest(model)
+        logger.info(f'{model.get_id()} achieved MdAPE={model_metrics["MdAPE"]:.4f} '
+                    f'(CI: [{model_metrics["MdAPE_95CI"][0]:.3f}, {model_metrics["MdAPE_95CI"][1]:.3f}])')
+
+        if reference_model:
+            logger.info(f'Running additional full backtest for reference model {reference_model.get_id()}')
+            ref_pred, ref_target, ref_metrics = harness.fulltest(reference_model)
+            assert model_target.equals(ref_target), "Target values for model and reference model do not match"
+
+            significance_result = harness.test_significance(
+                model_pred, ref_pred, model_target
+            )
+
+            logger.success(f'Full backtest comparison completed')
+            logger.info(f'Reference model MdAPE={ref_metrics["MdAPE"]:.4f} '
+                        f'(CI: [{ref_metrics["MdAPE_95CI"][0]:.3f}, {ref_metrics["MdAPE_95CI"][1]:.3f}])')
+            
+            logger.info(f'Significance test result: delta={significance_result["delta"]:.4f}, p={significance_result["p"]:.3g}')
+            if significance_result['significant']:
+                verdict = 'BETTER' if significance_result["delta"] < 0 else 'WORSE'
+                logger.info(f'The model is significantly {verdict} than the reference model.')
+            else:
+                logger.info(f'The model is NOT significantly DIFFERENT from the reference model.')
+
+        logger.success(f'Full backtest completed')
+        
 
     elif subcommand == "benchmark":
         assert args.track in [
