@@ -7,6 +7,7 @@ Only the advanced feature pipeline and its two learners are kept:
 * ``ListAwareBuildingV1`` — HGBR
 * ``ListAwareBuildingXGBoostV1`` — XGBoost
 
-Feature construction lives in ``features.py``. The archived development
-library is at ``archive/models_legacy`` and is not imported by this package.
+Feature construction lives in ``features.py``. ``attempt2.py`` contains the
+tested-but-not-promoted two-expert variants. The archived development library
+is at ``archive/models_legacy`` and is not imported by this package.
 """

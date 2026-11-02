@@ -1,6 +1,3 @@
-"""Final self-contained models: off-market building XGBoost and list-aware HGBR."""
-from __future__ import annotations
-
 import numpy as np
 import pandas as pd
 from sklearn.ensemble import HistGradientBoostingRegressor
@@ -13,14 +10,7 @@ from models.features import (
     SplineTensorBlock,
     base_features,
 )
-
-try:
-    from xgboost import XGBRegressor
-
-    XGBOOST_AVAILABLE = True
-except Exception:  # optional dependency / missing libomp
-    XGBRegressor = None
-    XGBOOST_AVAILABLE = False
+from xgboost import XGBRegressor
 
 
 def _make_hgbr(**overrides) -> HistGradientBoostingRegressor:
@@ -33,7 +23,7 @@ def _make_hgbr(**overrides) -> HistGradientBoostingRegressor:
     return HistGradientBoostingRegressor(**params)
 
 
-def _make_xgb(**overrides) -> "XGBRegressor":
+def _make_xgb(**overrides) -> XGBRegressor:
     params = dict(
         objective="reg:squarederror",
         n_estimators=600,
@@ -132,7 +122,7 @@ class OffMarketBuildingXGBoostV1(BaseOffMarketModel):
     """
 
     NAME = "Off-Market Building XGBoost V1"
-    ENABLED = XGBOOST_AVAILABLE
+    ENABLED = True
     MODEL_TAG = "XGB"
 
     def __init__(self):
@@ -235,7 +225,7 @@ class ListAwareBuildingXGBoostV1(BaseListAwareModel):
     """List-aware ratio model with base features plus exact-building history."""
 
     NAME = "List-Aware Building XGBoost V1"
-    ENABLED = XGBOOST_AVAILABLE
+    ENABLED = True
     MODEL_TAG = "XGB"
 
     def __init__(self):

@@ -8,7 +8,7 @@ from sklearn.ensemble import HistGradientBoostingRegressor
 from sklearn.feature_extraction.text import CountVectorizer
 from sklearn.preprocessing import SplineTransformer
 
-
+# Property types, house styles, and municipalities used for feature encoding
 PROPERTY_TYPES = [
     "Condo Apt",
     "Detached",
@@ -28,9 +28,9 @@ HOUSE_STYLES = [
 MUNICIPALITIES = ["Toronto", "North York", "Scarborough", "Etobicoke", "York"]
 
 TEXT_CUE_WORDBANK = {
-    "text:renovated": ["renovated", "renovation", "updated", "upgraded", "refreshed", "redone"],
+    "text:renovated": ["renovated", "renovation", "updated", "upgraded", "refreshed", "redone", "modern", "new"],
     "text:original": ["original", "dated", "as-is", "worn", "tired", "outdated"],
-    "text:potential": ["potential", "investor"],
+    "text:potential": ["potential", "investor", "canvas", "stamp"],
     "text:luxury": ["luxury", "luxurious", "stunning", "high-end", "premium"],
     "text:view": ["view", "skyline", "ravine", "waterfront"],
 }
@@ -49,7 +49,6 @@ def _normalize_remarks(value: str) -> str:
 
 
 def base_features(homes: pd.DataFrame, *, list_aware: bool = False) -> pd.DataFrame:
-    """Property/geography features shared by both final models."""
     X = pd.DataFrame(index=homes.index)
     X["area"] = square_feet(homes["house_area"])
     X["bedrooms"] = homes["bedrooms"]
