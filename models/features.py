@@ -442,35 +442,22 @@ class RemarksTermBlock:
     Binary encoding of a fixed 47-term vocabulary in `remarks`.
     """
 
-    _cache: dict[str, np.ndarray] = {}
-    _vectorizer: CountVectorizer | None = None
-
-    @classmethod
-    def clear_cache(cls) -> None:
-        cls._cache.clear()
-        cls._vectorizer = None
+    def __init__(self):
+        self._vectorizer = CountVectorizer(
+            vocabulary=list(TEXT_TERMS), ngram_range=(1, 2),
+            binary=True, dtype=np.float32,
+        )
 
     def _frame(self, homes: pd.DataFrame) -> pd.DataFrame:
-        ids = homes["ml_num"].astype(str).to_numpy()
+        # Older pickles relied on a process-wide cache and may have no instance
+        # vectorizer. Reconstruct the fixed vocabulary without fitting data.
+        if not hasattr(self, '_vectorizer'):
+            self.__init__()
         remarks = homes["remarks"].fillna("").astype(str).to_numpy()
-        missing = [i for i in ids if i not in self._cache]
-        if missing:
-            text_by_id = dict(zip(ids, remarks))
-            documents = [text_by_id[i] for i in missing]
-            if self._vectorizer is None:
-                self._vectorizer = CountVectorizer(
-                    vocabulary=list(TEXT_TERMS),
-                    ngram_range=(1, 2),
-                    binary=True,
-                    dtype=np.float32,
-                )
-                matrix = self._vectorizer.fit_transform(documents)
-            else:
-                matrix = self._vectorizer.transform(documents)
-            matrix = matrix.toarray()
-            for row, identifier in enumerate(missing):
-                self._cache[identifier] = matrix[row]
-        values = np.vstack([self._cache[i] for i in ids])
+        if len(remarks) == 0:
+            values = np.empty((0, len(TEXT_TERMS)), dtype=np.float32)
+        else:
+            values = self._vectorizer.transform(remarks).toarray()
         return pd.DataFrame(
             values,
             index=homes.index,
@@ -482,8 +469,6 @@ class RemarksTermBlock:
         return self._frame(train)
 
     def transform(self, homes: pd.DataFrame) -> pd.DataFrame:
-        if self._vectorizer is None and not self._cache:
-            raise RuntimeError("Call fit_transform before transform")
         return self._frame(homes)
 
 
@@ -690,4 +675,3 @@ class BuildingBlock:
         if self.history is None:
             raise RuntimeError("Call fit_transform before transform")
         return self._transform_by_month(homes, self.history)
-

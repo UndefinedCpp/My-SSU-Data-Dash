@@ -1,0 +1,12 @@
+{
+  "off_market": {
+    "incumbent": "OffMarketEnsembleV2",
+    "candidate": "OffMarketSemanticV7",
+    "candidate_weight": 0.25
+  },
+  "list_aware": {
+    "incumbent": "ListAwareBuildingV1",
+    "candidate": "ListAwareTextStackV6",
+    "candidate_weight": 0.5
+  }
+}

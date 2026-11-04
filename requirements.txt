@@ -1,4 +1,4 @@
-huggingface_hub==1.21.0
+huggingface_hub==2.4.0
 loguru==0.7.3
 matplotlib==3.11.0
 numpy==2.5.1
@@ -8,3 +8,8 @@ pytest==9.1.1
 scikit-learn==1.9.1
 tqdm==4.68.3
 xgboost==3.4.1
+catboost==1.2.10
+scipy==1.18.1
+sentence-transformers==6.2.0
+torch==2.15.0
+transformers==5.22.1

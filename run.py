@@ -85,10 +85,10 @@ benchmark_parser.add_argument(
 )
 
 # !!! Final submission models !!!
-# TODO: UPDATE THE FINAL SUBMISSION MODELS BEFORE FINAL SUBMISSION
+# Selected models and matched evaluation results: see RESULTS.md.
 SUBMISSION_MODELS = {
-    "off_market": "OffMarketBuildingXGBoostV1",
-    "list_aware": "ListAwareBuildingV1",
+    "off_market": "OffMarketRefinedV6",
+    "list_aware": "ListAwareRefinedV6",
 }
 
 
