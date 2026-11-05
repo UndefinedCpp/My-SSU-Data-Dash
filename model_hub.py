@@ -54,7 +54,7 @@ def load_model(selector: str) -> BaseModel:
         is_defined = _is_defined_in_source(file, selector)
         if is_defined:
             model_classes_dict = _import_module(f"models.{file.stem}")
-            if model_classes_dict and selector in model_classes_dict:
+            if model_classes_dict and (selector in model_classes_dict):
                 return model_classes_dict[selector]()
 
     raise ValueError(f"Model with selector '{selector}' not found")

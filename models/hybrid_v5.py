@@ -1,10 +1,9 @@
-"""Smooth additive offsets plus tree residuals and fair-value/list-price gaps."""
+"""Shared value-gap features and HGB base for the historical text stack."""
 import numpy as np
 import pandas as pd
-from models.serialization import StableCatBoostRegressor as CatBoostRegressor
 from sklearn.ensemble import HistGradientBoostingRegressor
 
-from models.BaseModel import BaseListAwareModel, BaseOffMarketModel
+from models.BaseModel import BaseListAwareModel
 from models.catboost_v2 import _CatBoostFeatures
 from models.features import SplineTensorBlock
 
@@ -26,29 +25,13 @@ class _HybridFeatures(_CatBoostFeatures):
         return pd.concat([frame, splines], axis=1)
 
 
-class ListAwareValueGapV5(_HybridFeatures, BaseListAwareModel):
-    NAME = 'List-Aware Value Gap V5'
-    MODEL_TAG = 'CatBoost'
-    ENABLED = True
-    LIST_AWARE = True
+class ListAwareValueGapHGBV5(_HybridFeatures, BaseListAwareModel):
+    """Implementation base for the selected historical-text model."""
 
-    def _train(self, data):
-        frame = self._features(data, fit=True)
-        target = np.log(data.sold_price.to_numpy(float) / data.list_price.to_numpy(float))
-        self.model = CatBoostRegressor(
-            iterations=self.iterations, depth=6, learning_rate=0.04,
-            loss_function='RMSE', l2_leaf_reg=8, random_seed=43, thread_count=8,
-            cat_features=['house_type_name', 'house_style', 'municipality', 'community', 'community_type'],
-            text_features=['remarks_text'], feature_calcers=['BoW:top_tokens_count=2000'],
-            allow_writing_files=False, verbose=False,
-        )
-        self.model.fit(frame, target)
-        return self
-
-
-class ListAwareValueGapHGBV5(ListAwareValueGapV5):
     NAME = 'List-Aware Value Gap HGB V5'
     MODEL_TAG = 'HGBR'
+    ENABLED = False
+    LIST_AWARE = True
 
     def _numeric(self, frame, fit=False):
         frame = frame.drop(columns=['remarks_text', 'house_type_name', 'house_style', 'municipality', 'community_type']).copy()

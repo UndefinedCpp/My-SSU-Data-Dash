@@ -20,6 +20,44 @@ pip install -r requirements.txt
 4. `python run.py clean` Clean up generated backtest files.
 5. `python run.py benchmark [-t track]` (under construction)
 
+## Active models
+
+The submission defaults are `OffMarketRefinedV6` and `ListAwareRefinedV6`.
+Only those models and the components they use are enabled for discovery and
+benchmarking:
+
+```text
+OffMarketRefinedV6
+├── OffMarketEnsembleV2 (75%)
+│   ├── OffMarketBuildingXGBoostV1 (50%)
+│   └── OffMarketCatBoostV2 (50%)
+└── OffMarketSemanticV7 (25%)
+
+ListAwareRefinedV6
+├── ListAwareBuildingV1 (50%)
+└── ListAwareTextStackV6 (50%)
+```
+
+All weights blend log prices, not dollar prices. The selected models, weights,
+features, and training settings are unchanged by the cleanup.
+`ListAwareValueGapHGBV5` and `OffMarketRobustXGBV6` remain as implementation bases
+for the text and semantic models, but are not separately enabled models.
+
+Unused standalone variants are preserved in
+[the model archive](archive/models_legacy/README.md), outside model discovery.
+They are reference code, not selectable backtest models; old checkpoints for
+those archived classes should be opened using the original Git revision.
+
+Run the focused regression tests without downloading the semantic encoder:
+
+```bash
+python -m pytest tests/test_model_cleanup.py
+```
+
+MiniLM embeddings are cached by exact remark text under `data/semantic/`.
+The first semantic run creates the cache; later training, prediction, and
+backtests reuse it. Delete that directory to force re-encoding.
+
 ## Creating custom models
 
 1. Add a `.py` file under `models/` (any name except `BaseModel.py`).

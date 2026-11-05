@@ -9,7 +9,6 @@ from sklearn.decomposition import PCA
 from sklearn.linear_model import Ridge
 
 from models.features import square_feet
-from models.hybrid_v5 import ListAwareValueGapHGBV5
 from models.robust_v6 import OffMarketRobustXGBV6
 
 MODEL_ID = 'sentence-transformers/all-MiniLM-L6-v2'
@@ -17,40 +16,157 @@ REVISION = 'c9745ed1d9f207416be6d2e6f8de32d1f16199bf'
 
 
 class FrozenSentenceEncoder:
+    """Frozen MiniLM embeddings cached by exact text hash.
+
+    The cache is process-wide and persisted under data/semantic. Training and
+    prediction therefore encode each distinct remark once, even when several
+    model instances are fitted in one backtest. The encoder keeps a whole batch
+    on its accelerator until one CPU transfer; converting every mini-batch to
+    NumPy is much slower on MPS.
+    """
+
     _vectors = None
     _index = None
     _encoder = None
+    _loaded_directory = None
+
+    def __init__(self, cache_dir=None, batch_size=256):
+        self.cache_dir = (Path(cache_dir) if cache_dir is not None
+                          else Path(__file__).resolve().parents[1] / 'data/semantic')
+        self.batch_size = batch_size
+
+    @classmethod
+    def _reset(cls):
+        cls._vectors = None
+        cls._index = None
+        cls._encoder = None
+        cls._loaded_directory = None
+
+    def _load_cache(self):
+        cls = type(self)
+        directory = self.cache_dir
+        if cls._loaded_directory == str(directory):
+            return
+        cls._vectors = None
+        cls._index = None
+        cls._loaded_directory = str(directory)
+        metadata_path = directory / 'metadata.json'
+        if not metadata_path.exists():
+            return
+        try:
+            metadata = json.loads(metadata_path.read_text())
+            if metadata.get('model_id') not in (None, MODEL_ID):
+                return
+            if (metadata.get('revision') != REVISION
+                    or not metadata.get('normalized')
+                    or metadata.get('max_seq_length') != 256):
+                return
+            rows = int(metadata['rows'])
+            if int(metadata['complete_rows']) != rows:
+                return
+            vectors = np.load(directory / 'vectors.npy')
+            hashes = np.load(directory / 'hashes.npy')
+            if (vectors.ndim != 2 or vectors.shape[0] != rows or vectors.shape[1] != 384
+                    or hashes.ndim != 1 or hashes.shape[0] != rows):
+                raise ValueError('embedding cache shape does not match metadata')
+            vectors = np.asarray(vectors, dtype=np.float32)
+            index = {}
+            for position, value in enumerate(hashes):
+                digest = value.decode('ascii') if isinstance(value, (bytes, np.bytes_)) else str(value)
+                if digest in index:
+                    raise ValueError('duplicate text hash in embedding cache')
+                index[digest] = position
+            cls._vectors = np.ascontiguousarray(vectors)
+            cls._index = index
+        except (OSError, ValueError, TypeError, KeyError, json.JSONDecodeError):
+            # A stale or damaged cache must never be used for a prediction.
+            cls._vectors = None
+            cls._index = None
+
+    def _encode(self, texts):
+        cls = type(self)
+        if cls._encoder is None:
+            import torch
+            from sentence_transformers import SentenceTransformer
+            local = self.cache_dir / 'encoder'
+            source = str(local) if local.exists() else MODEL_ID
+            cls._encoder = SentenceTransformer(
+                source, revision=REVISION,
+                device='mps' if torch.backends.mps.is_available() else 'cpu',
+            )
+            cls._encoder.max_seq_length = 256
+        vectors = cls._encoder.encode(
+            texts, batch_size=self.batch_size, normalize_embeddings=True,
+            show_progress_bar=False, convert_to_tensor=True,
+        )
+        if hasattr(vectors, 'detach'):
+            vectors = vectors.detach().cpu().numpy()
+        return np.asarray(vectors, dtype=np.float32)
+
+    def _save_cache(self):
+        cls = type(self)
+        if cls._vectors is None or cls._index is None or not cls._index:
+            return
+        directory = self.cache_dir
+        try:
+            directory.mkdir(parents=True, exist_ok=True)
+            hashes = np.asarray(list(cls._index), dtype='S64')
+            rows = len(cls._index)
+            metadata = {
+                'model_id': MODEL_ID,
+                'revision': REVISION,
+                'normalized': True,
+                'max_seq_length': 256,
+                'dimension': 384,
+                'rows': rows,
+                'complete_rows': rows,
+            }
+            vectors_tmp = directory / '.vectors.npy.tmp.npy'
+            hashes_tmp = directory / '.hashes.npy.tmp.npy'
+            metadata_tmp = directory / '.metadata.json.tmp'
+            np.save(vectors_tmp, cls._vectors, allow_pickle=False)
+            np.save(hashes_tmp, hashes, allow_pickle=False)
+            metadata_tmp.write_text(json.dumps(metadata) + '\n')
+            # Metadata is replaced last: readers only accept a complete pair.
+            vectors_tmp.replace(directory / 'vectors.npy')
+            hashes_tmp.replace(directory / 'hashes.npy')
+            metadata_tmp.replace(directory / 'metadata.json')
+        except OSError:
+            # A read-only checkout should still be usable; the cache is optional.
+            pass
 
     def transform(self, homes):
         texts = homes.remarks.fillna('').astype(str).tolist()
-        directory = Path(__file__).resolve().parents[1] / 'data/semantic'
+        if not texts:
+            return np.empty((0, 384), dtype=np.float32)
         cls = type(self)
-        if cls._vectors is None and (directory / 'metadata.json').exists():
-            metadata = json.loads((directory / 'metadata.json').read_text())
-            if (metadata['complete_rows'] == metadata['rows'] and metadata['revision'] == REVISION
-                    and metadata.get('normalized') and metadata.get('max_seq_length') == 256):
-                cls._vectors = np.load(directory / 'vectors.npy', mmap_mode='r')
-                hashes = np.load(directory / 'hashes.npy')
-                cls._index = {value.decode(): i for i, value in enumerate(hashes)}
+        self._load_cache()
         hashes = [hashlib.sha256(text.encode()).hexdigest() for text in texts]
         result = np.empty((len(texts), 384), dtype=np.float32)
-        missing = []
-        for i, digest in enumerate(hashes):
-            if cls._index is not None and digest in cls._index:
-                result[i] = cls._vectors[cls._index[digest]]
+        missing = {}
+        for position, digest in enumerate(hashes):
+            cached = cls._index.get(digest) if cls._index is not None else None
+            if cached is None:
+                missing.setdefault(digest, texts[position])
             else:
-                missing.append(i)
+                result[position] = cls._vectors[cached]
         if missing:
-            if cls._encoder is None:
-                import torch
-                from sentence_transformers import SentenceTransformer
-                local = directory / 'encoder'
-                source = str(local) if local.exists() else MODEL_ID
-                cls._encoder = SentenceTransformer(source, revision=REVISION,
-                    device='mps' if torch.backends.mps.is_available() else 'cpu')
-                cls._encoder.max_seq_length = 256
-            result[missing] = cls._encoder.encode([texts[i] for i in missing], batch_size=128,
-                                                  normalize_embeddings=True, show_progress_bar=False)
+            items = list(missing.items())
+            encoded = self._encode([text for _, text in items])
+            if encoded.shape != (len(items), 384):
+                raise ValueError('encoder returned an unexpected embedding shape')
+            start = 0 if cls._vectors is None else len(cls._vectors)
+            cls._vectors = (encoded.copy() if cls._vectors is None
+                            else np.concatenate([cls._vectors, encoded], axis=0))
+            if cls._index is None:
+                cls._index = {}
+            for offset, (digest, _) in enumerate(items):
+                cls._index[digest] = start + offset
+            for position, digest in enumerate(hashes):
+                cached = cls._index.get(digest)
+                if cached is not None:
+                    result[position] = cls._vectors[cached]
+            self._save_cache()
         return result
 
 
@@ -130,3 +246,4 @@ class _SemanticFeatures:
 
 class OffMarketSemanticV7(_SemanticFeatures, OffMarketRobustXGBV6):
     NAME = 'Off-Market Semantic V7'
+    ENABLED = True

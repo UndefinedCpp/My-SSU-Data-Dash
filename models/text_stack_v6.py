@@ -62,6 +62,7 @@ class HistoricalTextSignal:
 
 class ListAwareTextStackV6(ListAwareValueGapHGBV5):
     NAME = 'List-Aware Historical Text Stack V6'
+    ENABLED = True
 
     def __init__(self, iterations=1600):
         super().__init__(iterations=iterations)

@@ -1,3 +1,4 @@
+"""Original building models retained as components of the selected blends."""
 import numpy as np
 import pandas as pd
 from sklearn.ensemble import HistGradientBoostingRegressor
@@ -54,64 +55,6 @@ def _as_community_categories(
     frame = frame.copy()
     frame["community"] = pd.Categorical(values, categories=categories)
     return frame, categories
-
-
-class OffMarketBuildingV1(BaseOffMarketModel):
-    """Off-market V3 + exact-building features with HGBR.
-
-    Same feature matrix as the XGBoost variant; only the learner changes.
-    """
-
-    NAME = "Off-Market Building V1"
-    ENABLED = True
-    MODEL_TAG = "HGBR"
-
-    def __init__(self):
-        self.model = _make_hgbr(
-            max_iter=400,
-            learning_rate=0.05,
-            max_leaf_nodes=63,
-            min_samples_leaf=40,
-            l2_regularization=5.0,
-        )
-        self.comps = ComparableBlock()
-        self.splines = SplineTensorBlock()
-        self.text = RemarksTermBlock()
-        self.building = BuildingBlock(include_ratio=False)
-
-    def _fit_features(self, data: pd.DataFrame) -> pd.DataFrame:
-        return pd.concat(
-            [
-                base_features(data),
-                self.comps.fit_transform(data),
-                self.splines.fit_transform(data),
-                self.text.fit_transform(data),
-                self.building.fit_transform(data),
-            ],
-            axis=1,
-        )
-
-    def _transform_features(self, homes: pd.DataFrame) -> pd.DataFrame:
-        return pd.concat(
-            [
-                base_features(homes),
-                self.comps.transform(homes),
-                self.splines.transform(homes),
-                self.text.transform(homes),
-                self.building.transform(homes),
-            ],
-            axis=1,
-        )
-
-    def _train(self, data: pd.DataFrame) -> "OffMarketBuildingV1":
-        X = self._fit_features(data)
-        self.model.fit(X, np.log(data["sold_price"].to_numpy(dtype=float)))
-        return self
-
-    def _predict(self, homes: pd.DataFrame) -> pd.Series:
-        X = self._transform_features(homes)
-        raw = self.model.predict(X)
-        return pd.Series(np.exp(np.clip(raw, 5, 20)), index=homes.index)
 
 
 class OffMarketBuildingXGBoostV1(BaseOffMarketModel):
@@ -215,56 +158,6 @@ class ListAwareBuildingV1(BaseListAwareModel):
             ],
             axis=1,
         )
-        ratio = np.exp(np.clip(self.model.predict(X), -3, 3))
-        return pd.Series(
-            homes["list_price"].to_numpy(dtype=float) * ratio,
-            index=homes.index,
-        )
-
-class ListAwareBuildingXGBoostV1(BaseListAwareModel):
-    """List-aware ratio model with base features plus exact-building history."""
-
-    NAME = "List-Aware Building XGBoost V1"
-    ENABLED = True
-    MODEL_TAG = "XGB"
-
-    def __init__(self):
-        self.model = _make_xgb(
-            objective="reg:absoluteerror",
-            n_estimators=600,
-            max_depth=6,
-            learning_rate=0.04,
-        )
-        self.building = BuildingBlock(include_ratio=True)
-        self.community_categories_: pd.Index | None = None
-
-    def _train(self, data: pd.DataFrame) -> "ListAwareBuildingXGBoostV1":
-        X = pd.concat(
-            [
-                base_features(data, list_aware=True),
-                self.building.fit_transform(data),
-            ],
-            axis=1,
-        )
-        X, self.community_categories_ = _as_community_categories(X)
-        target = np.log(
-            data["sold_price"].to_numpy(dtype=float)
-            / data["list_price"].to_numpy(dtype=float)
-        )
-        self.model.fit(X, target)
-        return self
-
-    def _predict(self, homes: pd.DataFrame) -> pd.Series:
-        if self.community_categories_ is None:
-            raise RuntimeError("Call train before predict")
-        X = pd.concat(
-            [
-                base_features(homes, list_aware=True),
-                self.building.transform(homes),
-            ],
-            axis=1,
-        )
-        X, _ = _as_community_categories(X, self.community_categories_)
         ratio = np.exp(np.clip(self.model.predict(X), -3, 3))
         return pd.Series(
             homes["list_price"].to_numpy(dtype=float) * ratio,

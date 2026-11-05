@@ -2,8 +2,8 @@
 import numpy as np
 import pandas as pd
 
-from models.BaseModel import BaseListAwareModel, BaseOffMarketModel
-from models.attempt1 import ListAwareBuildingV1, OffMarketBuildingXGBoostV1
+from models.BaseModel import BaseOffMarketModel
+from models.attempt1 import OffMarketBuildingXGBoostV1
 from models.catboost_v2 import OffMarketCatBoostV2
 
 

@@ -3,8 +3,8 @@ import numpy as np
 import pandas as pd
 from models.serialization import StableCatBoostRegressor as CatBoostRegressor
 
-from models.BaseModel import BaseListAwareModel, BaseOffMarketModel
-from models.features import BuildingBlock, ComparableBlock, RemarksTermBlock, SplineTensorBlock, base_features
+from models.BaseModel import BaseOffMarketModel
+from models.features import BuildingBlock, ComparableBlock, RemarksTermBlock, base_features
 
 
 class _CatBoostFeatures:
