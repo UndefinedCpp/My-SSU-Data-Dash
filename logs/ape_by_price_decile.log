@@ -1,0 +1,24 @@
+=== START 2026-11-05T20:47:32-05:00 ===
+/Users/mymac/.matplotlib is not a writable directory
+Matplotlib created a temporary cache directory at /var/folders/tr/m62yq93x27b0zf8cnn9y9mxh0000gn/T/matplotlib-4x1h8pkw because there was an issue with the default path ({configdir}); it is highly recommended to set the MPLCONFIGDIR environment variable to a writable directory, in particular to speed up the import of Matplotlib and to better support multiprocessing.
+Matplotlib is building the font cache; this may take a moment.
+Validation rows: 6,047 (listed and sold on/after 2026-02-01)
+OffMarketRefinedV6: 6,047 rows, MdAPE=7.2126, MAPE=9.5817 (checkpoint OffMarketRefinedV6_20261105_202825_072975.pkl)
+ListAwareTextStackV6Tuned: 6,047 rows, MdAPE=3.9985, MAPE=5.2390 (checkpoint ListAwareTextStackV6Tuned_20261105_203040_260250.pkl)
+
+Wrote figure, CSV and summary to /Users/mymac/Documents/projects/SSUDataDash-workspace/reports
+price_decile   N  off_MdAPE  list_MdAPE  off_MdAPE_95CI_low  off_MdAPE_95CI_high  list_MdAPE_95CI_low  list_MdAPE_95CI_high
+          D1 605      5.578       3.212               5.047                6.011                2.915                 3.473
+          D2 605      4.857       3.087               4.448                5.225                2.793                 3.412
+          D3 604      5.427       2.989               4.967                6.061                2.699                 3.322
+          D4 605      6.031       3.432               5.470                6.560                3.065                 3.748
+          D5 605      6.433       4.043               5.871                6.876                3.753                 4.403
+          D6 604      6.674       4.876               6.130                7.452                4.433                 5.396
+          D7 605      7.742       4.608               7.176                8.518                4.147                 5.138
+          D8 604      9.746       5.016               8.896               10.590                4.639                 5.509
+          D9 605     10.183       5.261               9.535               11.056                4.662                 5.849
+         D10 605     15.111       5.138              14.161               16.046                4.742                 5.629
+real 16.32
+user 16.09
+sys 1.56
+=== EXIT 0 ===

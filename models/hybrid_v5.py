@@ -33,6 +33,14 @@ class ListAwareValueGapHGBV5(_HybridFeatures, BaseListAwareModel):
     ENABLED = False
     LIST_AWARE = True
 
+    # Learner settings. Subclasses may override these without copying `_train`.
+    MAX_ITER = 650
+    LEARNING_RATE = 0.04
+    MAX_LEAF_NODES = 31
+    MIN_SAMPLES_LEAF = 40
+    L2_REGULARIZATION = 5
+    RANDOM_STATE = 43
+
     def _numeric(self, frame, fit=False):
         frame = frame.drop(columns=['remarks_text', 'house_type_name', 'house_style', 'municipality', 'community_type']).copy()
         if fit:
@@ -44,9 +52,12 @@ class ListAwareValueGapHGBV5(_HybridFeatures, BaseListAwareModel):
     def _train(self, data):
         frame = self._numeric(self._features(data, fit=True), fit=True)
         self.model = HistGradientBoostingRegressor(
-            loss='absolute_error', learning_rate=0.04, max_iter=650,
-            max_leaf_nodes=31, min_samples_leaf=40, l2_regularization=5,
-            early_stopping=False, categorical_features=['community'], random_state=43,
+            loss='absolute_error', learning_rate=self.LEARNING_RATE,
+            max_iter=self.MAX_ITER, max_leaf_nodes=self.MAX_LEAF_NODES,
+            min_samples_leaf=self.MIN_SAMPLES_LEAF,
+            l2_regularization=self.L2_REGULARIZATION,
+            early_stopping=False, categorical_features=['community'],
+            random_state=self.RANDOM_STATE,
         )
         self.model.fit(frame, np.log(data.sold_price / data.list_price))
         return self

@@ -1,0 +1,15 @@
+=== START 2026-11-05T20:24:52-05:00 ===
+2026-11-05 20:24:54.067 | INFO     | harness:fulltest:386 - Running full backtest for model OffMarketRefinedV6, track: off_market, cohort: date_listed
+2026-11-05 20:24:54.067 | INFO     | harness:fulltest:390 - Training rows: 142,227; validation rows: 6,047
+2026-11-05 20:24:54.067 | INFO     | harness:fulltest:394 - Model training started
+2026-11-05 20:28:22.492 | INFO     | harness:fulltest:397 - Running model on validation set
+2026-11-05 20:28:25.155 | SUCCESS  | harness:fulltest:415 - Saved fitted model to saved_models/fulltest/OffMarketRefinedV6_20261105_202825_072975.pkl (metadata: saved_models/fulltest/OffMarketRefinedV6_20261105_202825_072975.json)
+2026-11-05 20:28:25.155 | INFO     | __main__:<module>:232 - OffMarketRefinedV6 achieved MdAPE=7.2126 (CI: [6.979, 7.431])
+2026-11-05 20:28:25.155 | INFO     | __main__:<module>:234 -   N=6,047
+2026-11-05 20:28:25.155 | INFO     | __main__:<module>:235 -   MAPE=9.5817 (CI: [9.355, 9.812])
+2026-11-05 20:28:25.155 | INFO     | __main__:<module>:237 -   Signed error: median=-0.9186, mean=-0.7491
+2026-11-05 20:28:25.155 | SUCCESS  | __main__:<module>:266 - Full backtest completed
+real 212.31
+user 1206.88
+sys 30.07
+=== EXIT_OFF 0 ===

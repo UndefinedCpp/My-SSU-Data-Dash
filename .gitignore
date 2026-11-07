@@ -6,6 +6,7 @@ figures/
 submissions/
 
 backtest/
+saved_models/
 
 # Python and notebook clutter
 __pycache__/

@@ -14,15 +14,27 @@ pip install -r requirements.txt
 
 ## Commands
 
-1. `python run.py predict` **(Required)** Predict using the final, trained model(s) and generate two submission files.
+1. `python run.py predict [--save-model DIR]` **(Required)** Predict using the final, trained model(s) and generate two submission files. Optionally save the two final fitted models and metadata.
 2. `python run.py check` **(Required)** Check the two submission files for format and consistency.
-3. `python run.py backtest [model_name] [-c cutoff]` Backtest the specified model on the model's own track (its `TRACK`) and the given cutoff date. Cutoff defaults to `all`, which runs a walk-forward backtest from Dec. 2025 to May 2026.
-4. `python run.py clean` Clean up generated backtest files.
-5. `python run.py benchmark [-t track]` (under construction)
+3. `python run.py backtest [model_name] [-c cutoff] [--ref REF] [--cohort COHORT]` Backtest the specified model on its own track (its `TRACK`) and the given cutoff date. Cutoff defaults to `all`, which runs a walk-forward backtest from Dec. 2025 to May 2026. `--cohort` defaults to `date_listed`.
+4. `python run.py fulltest [model_name] [--ref REF] [--cohort COHORT] [--save-model DIR]` Train through January 2026 and evaluate February–May 2026. `--cohort` defaults to `date_listed`.
+5. `python run.py clean` Clean up generated backtest files.
+6. `python run.py benchmark [-t track]` (under construction)
+
+## Evaluation cohorts
+
+`--cohort date_listed` is the default. Training uses sales completed before
+the cutoff, while validation uses homes listed on or after the cutoff (or in
+the cutoff month for walk-forward backtests). This avoids showing the model
+sales that happened after a validation home was listed.
+
+Use `--cohort date_sold` only to reproduce the older protocol, which selects
+validation homes by sale date and can include homes listed before the training
+cutoff.
 
 ## Active models
 
-The submission defaults are `OffMarketRefinedV6` and `ListAwareRefinedV6`.
+The submission defaults are `OffMarketRefinedV6` and `ListAwareTextStackV6Tuned`.
 Only those models and the components they use are enabled for discovery and
 benchmarking:
 
@@ -33,10 +45,15 @@ OffMarketRefinedV6
 │   └── OffMarketCatBoostV2 (50%)
 └── OffMarketSemanticV7 (25%)
 
-ListAwareRefinedV6
+ListAwareTextStackV6Tuned    submitted directly; learner settings tuned on validation
+ListAwareRefinedV6           previous 50/50 blend, kept for comparison
 ├── ListAwareBuildingV1 (50%)
 └── ListAwareTextStackV6 (50%)
 ```
+
+The list-aware blend was dropped because its two components were 0.92 correlated
+on absolute error: the tuned single stack scored MdAPE 3.9191 on the pooled
+six-month walk-forward against 3.9569 for the blend.
 
 All weights blend log prices, not dollar prices. The selected models, weights,
 features, and training settings are unchanged by the cleanup.
@@ -57,6 +74,10 @@ python -m pytest tests/test_model_cleanup.py
 MiniLM embeddings are cached by exact remark text under `data/semantic/`.
 The first semantic run creates the cache; later training, prediction, and
 backtests reuse it. Delete that directory to force re-encoding.
+
+`--save-model DIR` writes a pickled fitted model plus a JSON metadata sidecar.
+`predict` saves the two final all-data models; `fulltest` saves only the model
+being evaluated, never the reference model.
 
 ## Creating custom models
 

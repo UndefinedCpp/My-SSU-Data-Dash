@@ -73,3 +73,23 @@ class ListAwareTextStackV6(ListAwareValueGapHGBV5):
         frame['historical_text_ratio'] = (self.text_signal.fit_transform(homes) if fit
                                           else self.text_signal.transform(homes))
         return frame
+
+
+class ListAwareTextStackV6Tuned(ListAwareTextStackV6):
+    """V6 with learner settings selected by validation.
+
+    Chosen on two protocols: the four-month fulltest window (Feb-May 2026) and
+    the six-month walk-forward (Dec 2025-May 2026). The tuned model reached
+    MdAPE 3.9191 on the pooled walk-forward, against 3.9569 for the previous
+    50/50 blend with ListAwareBuildingV1, so it is submitted directly instead of
+    blended.
+    """
+
+    NAME = 'List-Aware Text Stack V6 (tuned)'
+    ENABLED = True
+
+    MAX_ITER = 1200
+    LEARNING_RATE = 0.03
+    MAX_LEAF_NODES = 63
+    MIN_SAMPLES_LEAF = 60
+    L2_REGULARIZATION = 10.0

@@ -8,10 +8,12 @@ Required sub-commands:
   Check the two submission files for format and consistency.
 
 Custom sub-commands:
-- python run.py backtest [model_name] [-c cutoff] [--ref ref_model_name]
+- python run.py backtest [model_name] [-c cutoff] [--ref ref_model_name] [--cohort ...]
   Backtest the specified model (on its own track) at the given cutoff date.
   Can optionally pass a reference model name so the back test can compare the
-  performance against the reference model.
+  performance against the reference model. Cohort defaults to date_listed.
+- python run.py fulltest [model_name] [--ref ref_model_name] [--cohort ...]
+  Train through January 2026 and evaluate February-May 2026.
 - python run.py clean
   Clean up generated backtest files.
 - python run.py benchmark [track]
@@ -38,6 +40,11 @@ predict_parser = subparsers.add_parser(
     "predict",
     help="Predict using the final, trained model(s) and generate two submission files.",
 )
+predict_parser.add_argument(
+    "--save-model",
+    metavar="DIR",
+    help="Also save the two fitted final models and metadata to DIR",
+)
 check_parser = subparsers.add_parser(
     "check", help="Check the two submission files for format and consistency."
 )
@@ -60,6 +67,12 @@ backtest_parser.add_argument(
     help="Reference model name for comparison in the backtest",
     required=False,
 )
+backtest_parser.add_argument(
+    "--cohort",
+    choices=harness.COHORT_CHOICES,
+    default="date_listed",
+    help="Validation cohort: date_listed (default, no listing lookahead) or date_sold",
+)
 clean_parser = subparsers.add_parser("clean", help="Clean up generated backtest files.")
 fulltest_parser = subparsers.add_parser(
     "fulltest",
@@ -73,6 +86,17 @@ fulltest_parser.add_argument(
     "--ref",
     help="Reference model name for comparison in the full backtest",
     required=False,
+)
+fulltest_parser.add_argument(
+    "--cohort",
+    choices=harness.COHORT_CHOICES,
+    default="date_listed",
+    help="Validation cohort: date_listed (default, no listing lookahead) or date_sold",
+)
+fulltest_parser.add_argument(
+    "--save-model",
+    metavar="DIR",
+    help="Save the fitted model and metadata to DIR",
 )
 benchmark_parser = subparsers.add_parser(
     "benchmark",
@@ -88,7 +112,7 @@ benchmark_parser.add_argument(
 # Selected models and matched evaluation results: see RESULTS.md.
 SUBMISSION_MODELS = {
     "off_market": "OffMarketRefinedV6",
-    "list_aware": "ListAwareRefinedV6",
+    "list_aware": "ListAwareTextStackV6Tuned",
 }
 
 
@@ -102,10 +126,12 @@ if __name__ == "__main__":
         harness.predict_and_write(
             model_hub.load_model(SUBMISSION_MODELS["off_market"]),
             Path("submissions", "submission_off_market.csv"),
+            save_dir=args.save_model,
         )
         harness.predict_and_write(
             model_hub.load_model(SUBMISSION_MODELS["list_aware"]),
             Path("submissions", "submission_list_aware.csv"),
+            save_dir=args.save_model,
         )
 
     elif subcommand == "check":
@@ -144,11 +170,17 @@ if __name__ == "__main__":
                 # misleading, so we issue a warning to the user and does no
                 # perform a comparision.
                 logger.warning(f'Backtesting a single month with a reference model may be misleading. Comparison will not be performed.')
-            harness.backtest(model, date_cutoff[0], verbose=True, save_results=True)
+            harness.backtest(
+                model, date_cutoff[0], verbose=True, save_results=True,
+                cohort=args.cohort,
+            )
         else:
             experiment_dataframes = []
             for dc in tqdm(date_cutoff, desc=f"Backtesting"):
-                r = harness.backtest(model, dc, verbose=False, save_results=False)
+                r = harness.backtest(
+                    model, dc, verbose=False, save_results=False,
+                    cohort=args.cohort,
+                )
                 experiment_dataframes.append(r)
             # Create pooled statistics
             pooled_df = pd.concat(experiment_dataframes, ignore_index=True)
@@ -170,7 +202,10 @@ if __name__ == "__main__":
                 logger.info(f'Running extra comparison with reference model {reference_model.get_id()}')
                 ref_dataframes = []
                 for dc in tqdm(date_cutoff, desc=f"Backtesting reference model"):
-                    r = harness.backtest(reference_model, dc, verbose=False, save_results=False)
+                    r = harness.backtest(
+                        reference_model, dc, verbose=False, save_results=False,
+                        cohort=args.cohort,
+                    )
                     ref_dataframes.append(r)
                 pooled_ref_df = pd.concat(ref_dataframes, ignore_index=True)
                 ref_metrics = harness.report_metrics(pooled_ref_df["pred"], pooled_ref_df["target"])
@@ -191,13 +226,22 @@ if __name__ == "__main__":
         model = harness.load_model(args.model_name)
         reference_model = (harness.load_model(args.ref)) if args.ref else None
 
-        model_pred, model_target, model_metrics = harness.fulltest(model)
+        model_pred, model_target, model_metrics = harness.fulltest(
+            model, cohort=args.cohort, save_dir=args.save_model,
+        )
         logger.info(f'{model.get_id()} achieved MdAPE={model_metrics["MdAPE"]:.4f} '
                     f'(CI: [{model_metrics["MdAPE_95CI"][0]:.3f}, {model_metrics["MdAPE_95CI"][1]:.3f}])')
+        logger.info(f'  N={model_metrics["N"]:,}')
+        logger.info(f'  MAPE={model_metrics["MAPE"]:.4f} '
+                    f'(CI: [{model_metrics["MAPE_95CI"][0]:.3f}, {model_metrics["MAPE_95CI"][1]:.3f}])')
+        logger.info(f'  Signed error: median={model_metrics["median_signed_err"]:.4f}, '
+                    f'mean={model_metrics["mean_signed_err"]:.4f}')
 
         if reference_model:
             logger.info(f'Running additional full backtest for reference model {reference_model.get_id()}')
-            ref_pred, ref_target, ref_metrics = harness.fulltest(reference_model)
+            ref_pred, ref_target, ref_metrics = harness.fulltest(
+                reference_model, cohort=args.cohort,
+            )
             assert model_target.equals(ref_target), "Target values for model and reference model do not match"
 
             significance_result = harness.test_significance(
@@ -207,6 +251,10 @@ if __name__ == "__main__":
             logger.success(f'Full backtest comparison completed')
             logger.info(f'Reference model MdAPE={ref_metrics["MdAPE"]:.4f} '
                         f'(CI: [{ref_metrics["MdAPE_95CI"][0]:.3f}, {ref_metrics["MdAPE_95CI"][1]:.3f}])')
+            logger.info(f'  MAPE={ref_metrics["MAPE"]:.4f} '
+                        f'(CI: [{ref_metrics["MAPE_95CI"][0]:.3f}, {ref_metrics["MAPE_95CI"][1]:.3f}])')
+            logger.info(f'  Signed error: median={ref_metrics["median_signed_err"]:.4f}, '
+                        f'mean={ref_metrics["mean_signed_err"]:.4f}')
             
             logger.info(f'Significance test result: delta={significance_result["delta"]:.4f}, p={significance_result["p"]:.3g}')
             if significance_result['significant']:

@@ -23,9 +23,49 @@ from scipy.stats import wilcoxon
 
 CLAIMED_BASELINE_OFF_MARKET = 20.8  # Reproduced value: 20.8428, CI: [20.398, 21.356]
 CLAIMED_BASELINE_LIST_AWARE = 7.3  # Reproduced value: 7.2593, CI: [7.120, 7.414]
+COHORT_CHOICES = ("date_listed", "date_sold")
 
 
-def predict_and_write(model: BaseModel, output_file_path: Path, verbose: bool = True):
+def save_model(
+    model: BaseModel,
+    directory: str | Path,
+    *,
+    cohort: str,
+    training_cutoff: str | None = None,
+    training_rows: int | None = None,
+    validation_rows: int | None = None,
+    metrics: dict | None = None,
+) -> tuple[Path, Path]:
+    """Persist a fitted model and a small, human-readable sidecar."""
+    directory = Path(directory)
+    directory.mkdir(parents=True, exist_ok=True)
+    stamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
+    stem = f"{model.get_id()}_{stamp}"
+    model_path = directory / f"{stem}.pkl"
+    with open(model_path, "wb") as handle:
+        pickle.dump(model, handle, protocol=pickle.HIGHEST_PROTOCOL)
+    metadata = {
+        "model_id": model.get_id(),
+        "name": model.NAME,
+        "track": model.TRACK,
+        "cohort": cohort,
+        "training_cutoff": training_cutoff,
+        "training_rows": training_rows,
+        "validation_rows": validation_rows,
+        "metrics": metrics,
+        "saved_at": datetime.now().isoformat(),
+    }
+    metadata_path = directory / f"{stem}.json"
+    metadata_path.write_text(json.dumps(metadata, indent=2, default=str) + "\n")
+    return model_path, metadata_path
+
+
+def predict_and_write(
+    model: BaseModel,
+    output_file_path: Path,
+    verbose: bool = True,
+    save_dir: str | Path | None = None,
+):
     track = model.TRACK
     my_print = logger.info if verbose else lambda *args, **kwargs: None
     my_print(f'Predicting with model "{model.NAME}" on track "{track}"')
@@ -47,6 +87,12 @@ def predict_and_write(model: BaseModel, output_file_path: Path, verbose: bool = 
             "predicted_price": np.round(predictions)
         }
     ).to_csv(output_file_path, index=False)
+
+    if save_dir is not None:
+        model_path, metadata_path = save_model(
+            model, save_dir, cohort="all", training_rows=len(listings),
+        )
+        my_print(f"Saved final model to {model_path} (metadata: {metadata_path})")
 
     time_elapsed = time.perf_counter() - time_begin
     if verbose:
@@ -108,19 +154,40 @@ def backtest(
     date_cutoff: pd.Period,
     verbose: bool = True,
     save_results: bool = False,
+    cohort: str = "date_listed",
 ) -> str | pd.DataFrame:
     my_print = logger.info if verbose else (lambda *args, **kwargs: None)
     track = model.TRACK
+    if cohort not in COHORT_CHOICES:
+        raise ValueError(f"cohort must be one of {COHORT_CHOICES}, got {cohort!r}")
 
-    my_print(f'Preparing backtest data, cutoff: {date_cutoff}, track: "{track}"')
+    my_print(
+        f'Preparing backtest data, cutoff: {date_cutoff}, cohort: {cohort}, '
+        f'track: "{track}"'
+    )
     listings = data.load("listings")
     train_data = listings[listings["date_sold"] < date_cutoff.start_time]
-    valid_data = listings[listings["date_sold"].dt.to_period("M") == date_cutoff]
+    if cohort == "date_listed":
+        # Evaluate homes that hit the market in this month. Requiring a known
+        # sale keeps this a supervised evaluation, not a prediction service.
+        valid_data = listings[
+            (listings["date_listed"].dt.to_period("M") == date_cutoff)
+            & listings["date_sold"].notna()
+        ]
+    else:
+        valid_data = listings[listings["date_sold"].dt.to_period("M") == date_cutoff]
+    if valid_data.empty:
+        raise ValueError(
+            f"No validation rows for cutoff {date_cutoff} with cohort {cohort!r}"
+        )
 
     my_print(f"Training started, dataset size: {len(train_data):,}")
     model.train(train_data)
 
-    my_print(f"Validating, dataset size: {len(valid_data):,}")
+    my_print(
+        f"Validating, dataset size: {len(valid_data):,} "
+        f"(cohort={cohort})"
+    )
     predictions = model.predict(data.hide_answers(valid_data, track))
     predictions = predictions.round()
     targets = valid_data["sold_price"]
@@ -296,14 +363,34 @@ def benchmark(track_or_model_list):
     logger.info("\n".join(leaderboard_print_lst))
 
 
-def fulltest(model: BaseModel):
+def fulltest(model: BaseModel, cohort: str = "date_listed", save_dir=None):
+    if cohort not in COHORT_CHOICES:
+        raise ValueError(f"cohort must be one of {COHORT_CHOICES}, got {cohort!r}")
     listings = data.load('listings')
-    # Train through the end of January 2026; validate on February-May 2026.
-    training_set = listings[listings["date_sold"] < pd.Timestamp("2026-02-01")]
-    validation_set = listings[listings["date_sold"] >= pd.Timestamp("2026-02-01")]
+    cutoff = pd.Timestamp("2026-02-01")
+    # Train only on completed sales; the cohort controls which homes are scored.
+    training_set = listings[listings["date_sold"] < cutoff]
+    if cohort == "date_listed":
+        validation_set = listings[
+            (listings["date_listed"] >= cutoff)
+            & (listings["date_sold"] >= cutoff)
+            & listings["date_sold"].notna()
+        ]
+    else:
+        validation_set = listings[listings["date_sold"] >= cutoff]
+    if validation_set.empty:
+        raise ValueError(
+            f"No validation rows for cutoff {cutoff.date()} with cohort {cohort!r}"
+        )
     track = model.TRACK
-    logger.info(f'Running full backtest for model {model.get_id()}, track: {track}')
-    # Train the model on the training set
+    logger.info(
+        f'Running full backtest for model {model.get_id()}, track: {track}, '
+        f'cohort: {cohort}'
+    )
+    logger.info(
+        f'Training rows: {len(training_set):,}; validation rows: '
+        f'{len(validation_set):,}'
+    )
     logger.info(f'Model training started')
     model.train(training_set)
 
@@ -314,5 +401,19 @@ def fulltest(model: BaseModel):
 
     # Evaluate the model's performance on the validation set
     metrics = report_metrics(predictions, targets)
+
+    if save_dir is not None:
+        model_path, metadata_path = save_model(
+            model,
+            save_dir,
+            cohort=cohort,
+            training_cutoff=cutoff.date().isoformat(),
+            training_rows=len(training_set),
+            validation_rows=len(validation_set),
+            metrics=metrics,
+        )
+        logger.success(
+            f'Saved fitted model to {model_path} (metadata: {metadata_path})'
+        )
 
     return predictions, targets, metrics
