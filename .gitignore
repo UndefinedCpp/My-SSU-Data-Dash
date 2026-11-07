@@ -3,7 +3,6 @@ data/
 outputs/
 reports/
 figures/
-submissions/
 
 backtest/
 saved_models/

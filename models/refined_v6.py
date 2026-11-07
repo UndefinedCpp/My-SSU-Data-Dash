@@ -40,3 +40,4 @@ class OffMarketRefinedV6(_RefinedBlend, BaseOffMarketModel):
 
 class ListAwareRefinedV6(_RefinedBlend, BaseListAwareModel):
     NAME = 'List-Aware Refined V6'
+

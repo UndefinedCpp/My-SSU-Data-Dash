@@ -32,53 +32,6 @@ Use `--cohort date_sold` only to reproduce the older protocol, which selects
 validation homes by sale date and can include homes listed before the training
 cutoff.
 
-## Active models
-
-The submission defaults are `OffMarketRefinedV6` and `ListAwareTextStackV6Tuned`.
-Only those models and the components they use are enabled for discovery and
-benchmarking:
-
-```text
-OffMarketRefinedV6
-├── OffMarketEnsembleV2 (75%)
-│   ├── OffMarketBuildingXGBoostV1 (50%)
-│   └── OffMarketCatBoostV2 (50%)
-└── OffMarketSemanticV7 (25%)
-
-ListAwareTextStackV6Tuned    submitted directly; learner settings tuned on validation
-ListAwareRefinedV6           previous 50/50 blend, kept for comparison
-├── ListAwareBuildingV1 (50%)
-└── ListAwareTextStackV6 (50%)
-```
-
-The list-aware blend was dropped because its two components were 0.92 correlated
-on absolute error: the tuned single stack scored MdAPE 3.9191 on the pooled
-six-month walk-forward against 3.9569 for the blend.
-
-All weights blend log prices, not dollar prices. The selected models, weights,
-features, and training settings are unchanged by the cleanup.
-`ListAwareValueGapHGBV5` and `OffMarketRobustXGBV6` remain as implementation bases
-for the text and semantic models, but are not separately enabled models.
-
-Unused standalone variants are preserved in
-[the model archive](archive/models_legacy/README.md), outside model discovery.
-They are reference code, not selectable backtest models; old checkpoints for
-those archived classes should be opened using the original Git revision.
-
-Run the focused regression tests without downloading the semantic encoder:
-
-```bash
-python -m pytest tests/test_model_cleanup.py
-```
-
-MiniLM embeddings are cached by exact remark text under `data/semantic/`.
-The first semantic run creates the cache; later training, prediction, and
-backtests reuse it. Delete that directory to force re-encoding.
-
-`--save-model DIR` writes a pickled fitted model plus a JSON metadata sidecar.
-`predict` saves the two final all-data models; `fulltest` saves only the model
-being evaluated, never the reference model.
-
 ## Creating custom models
 
 1. Add a `.py` file under `models/` (any name except `BaseModel.py`).
